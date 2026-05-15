@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# fifteenday
 
-## Getting Started
+AI on-ramp to Oregon's public records law (ORS 192). Interview a citizen, draft a properly-scoped request, route to the right custodian, send it, and publish responses to a shared library — after human review.
 
-First, run the development server:
+See [PITCH.md](./PITCH.md) for the why and the team ask.
+
+## Stack
+
+Next.js 16 (App Router, Turbopack) · TypeScript · Tailwind v4 · shadcn/ui · Drizzle ORM · Neon Postgres · Vercel AI SDK (Anthropic) · Resend (outbound + inbound) · Vercel Blob.
+
+## Dev setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local
+# fill in DATABASE_URL, ANTHROPIC_API_KEY, RESEND_API_KEY at minimum
+pnpm db:push        # apply schema to the dev database
+pnpm db:seed        # load the hand-curated custodian directory
+pnpm dev            # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Required provisioning
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+These need human action before the dev server is useful:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Neon Postgres** — provision via Vercel Marketplace. Sets `DATABASE_URL`.
+2. **Anthropic API key** — `console.anthropic.com` → API keys. Sets `ANTHROPIC_API_KEY`.
+3. **Resend** — create a domain (e.g. `fifteenday.org`), configure SPF/DKIM/DMARC, register an inbound route for `req-*@inbound.fifteenday.org` pointing at `/api/inbound/resend`. Sets `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `INBOUND_DOMAIN`, `OUTBOUND_FROM_EMAIL`.
+4. **Vercel Blob** — create a store in the Vercel dashboard. Sets `BLOB_READ_WRITE_TOKEN`.
+5. **Admin password** — generate a long random string. Sets `ADMIN_PASSWORD`.
 
-## Learn More
+See `.env.example` for the full list.
 
-To learn more about Next.js, take a look at the following resources:
+## Phases
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The full plan lives at `~/.claude/plans/great-lets-implement-it-validated-dongarra.md`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **A — Scaffold** ✅ Next.js + Tailwind + shadcn + Drizzle schema + custodian seed
+- **B — Interview + Draft + Send** the wizard, the routing, the Resend send
+- **C — Inbound + Library** webhook receiver, public library, admin publish toggle
+- **D — Stretch** PDF text extraction, moderator queue, magic-link auth
 
-## Deploy on Vercel
+## Operating warnings
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Email deliverability** is the entire product's spine. New domains have terrible deliverability — warm the domain before sending to agencies.
+2. **Manual redaction only.** Inbound responses default to `published=false`. A human must review before publish. Automated redaction is explicitly out of scope.
+3. **Fee waivers** under ORS 192.324(5) require an explicit, user-affirmed public-interest rationale. The LLM does not decide.
+4. **Verify every seeded custodian email** before sending real requests. The seed in `lib/custodians/seed.ts` is plausible but unverified.
